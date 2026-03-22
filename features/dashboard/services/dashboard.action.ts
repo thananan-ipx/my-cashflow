@@ -35,12 +35,12 @@ export async function fetchDashboardTransactions(earliestDate: Date) {
     supabase
       .from("expenses")
       .select(`id, amount, date, category, sub_category, month, year, owner, transaction_categories(name, color)`)
-      .eq("user_id", user.id)
+      // .eq("user_id", user.id)
       .gte("date", earliestDateOnly),
     supabase
       .from("income")
       .select(`id, amount, created_at, note, month, year, owner, transaction_categories(name, color)`)
-      .eq("user_id", user.id)
+      // .eq("user_id", user.id)
       .gte("created_at", earliestDateStr)
   ]);
 

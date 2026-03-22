@@ -9,7 +9,7 @@ export async function fetchCategories(): Promise<Category[]> {
   const { data, error } = await supabase
     .from("transaction_categories")
     .select("*")
-    .eq("user_id", user.id)
+    // .eq("user_id", user.id)
     .order("created_at", { ascending: true });
 
   if (error) throw error;
