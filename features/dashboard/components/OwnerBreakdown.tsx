@@ -1,10 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Users, User } from "lucide-react";
+import { Users, User, ArrowRightLeft } from "lucide-react";
 
 export type OwnerSummaryData = {
   income: number;
   expense: number;
+  transferIn: number;
+  transferOut: number;
   balance: number;
 };
 
@@ -34,31 +36,53 @@ export function OwnerBreakdown({ data }: OwnerBreakdownProps) {
           const Icon = card.icon;
           
           return (
-            <Card key={card.key} className={cn("border-none shadow-sm", card.bgClass)}>
+            <Card key={card.key} className={cn("border-none shadow-sm flex flex-col", card.bgClass)}>
               <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
                 <CardTitle className={cn("text-md font-bold", card.colorClass)}>
                   {card.label}
                 </CardTitle>
                 <Icon className={cn("w-4 h-4", card.colorClass)} />
               </CardHeader>
-              <CardContent className="space-y-1.5">
+              <CardContent className="space-y-1.5 flex-1 flex flex-col">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">รายรับ</span>
                   <span className="font-medium text-emerald-600 dark:text-emerald-400">
                     +฿{stats.income.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
+                {/* แสดงบรรทัดรับเงินโอน (ถ้ามี) */}
+                {stats.transferIn > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground flex items-center gap-1"><ArrowRightLeft className="w-3 h-3"/> รับเงินโอน</span>
+                    <span className="font-medium text-blue-600 dark:text-blue-400">
+                      +฿{stats.transferIn.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">รายจ่าย</span>
                   <span className="font-medium text-rose-600 dark:text-rose-400">
                     -฿{stats.expense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
-                <div className="pt-2 border-t border-black/5 dark:border-white/5 flex justify-between items-center">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">คงเหลือ</span>
-                  <span className={cn("font-bold", stats.balance >= 0 ? card.colorClass : "text-rose-500")}>
-                    ฿{stats.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
+                {/* แสดงบรรทัดโอนเงินออก (ถ้ามี) */}
+                {stats.transferOut > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground flex items-center gap-1"><ArrowRightLeft className="w-3 h-3"/> โอนเงินออก</span>
+                    <span className="font-medium text-orange-600 dark:text-orange-400">
+                      -฿{stats.transferOut.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                )}
+                
+                <div className="mt-auto pt-3">
+                  <div className="pt-2 border-t border-black/5 dark:border-white/5 flex justify-between items-center">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">คงเหลือ</span>
+                    <span className={cn("font-bold", stats.balance >= 0 ? card.colorClass : "text-rose-500")}>
+                      ฿{stats.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
