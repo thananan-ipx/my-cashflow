@@ -49,9 +49,9 @@ export default function DashboardPage() {
     const categoryTotals: Record<string, { value: number; color: string }> = {};
 
     const ownerSummary: OwnerBreakdownData = {
-      joint: { income: 0, expense: 0, balance: 0 },
-      new: { income: 0, expense: 0, balance: 0 },
-      save: { income: 0, expense: 0, balance: 0 },
+      joint: { income: 0, expense: 0, transferIn: 0, transferOut: 0, balance: 0 },
+      new: { income: 0, expense: 0, transferIn: 0, transferOut: 0, balance: 0 },
+      save: { income: 0, expense: 0, transferIn: 0, transferOut: 0, balance: 0 },
     };
 
     const currentCycleStart = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 25, 0, 0, 0, 0);
@@ -60,11 +60,19 @@ export default function DashboardPage() {
     rawIncomes.forEach((inc) => {
       const incDate = new Date(inc.created_at);
       if (incDate >= currentCycleStart && incDate <= currentCycleEnd) {
-        totalIncome += Number(inc.amount);
+        const isTransfer = inc.note?.includes("รับเงินโอนจาก");
+
+        if (!isTransfer) {
+          totalIncome += Number(inc.amount);
+        }
         
         const ownerKey = (inc.owner || "joint") as keyof OwnerBreakdownData;
         if (ownerSummary[ownerKey]) {
-          ownerSummary[ownerKey].income += Number(inc.amount);
+          if (isTransfer) {
+            ownerSummary[ownerKey].transferIn += Number(inc.amount);
+          } else {
+            ownerSummary[ownerKey].income += Number(inc.amount);
+          }
         }
       }
     });
@@ -72,22 +80,34 @@ export default function DashboardPage() {
     rawExpenses.forEach((exp) => {
       const expDate = new Date(exp.date);
       if (expDate >= currentCycleStart && expDate <= currentCycleEnd) {
-        totalExpense += Number(exp.amount);
+        const isTransfer = exp.sub_category?.includes("โอนเงินไปที่");
+
+        if (!isTransfer) {
+          totalExpense += Number(exp.amount);
+        }
         
         const ownerKey = (exp.owner || "joint") as keyof OwnerBreakdownData;
         if (ownerSummary[ownerKey]) {
-          ownerSummary[ownerKey].expense += Number(exp.amount);
+          if (isTransfer) {
+            ownerSummary[ownerKey].transferOut += Number(exp.amount);
+          } else {
+            ownerSummary[ownerKey].expense += Number(exp.amount);
+          }
         }
         
-        const catName = exp.transaction_categories?.name || LEGACY_LABELS[exp.category] || exp.category || "อื่นๆ";
-        const catColor = exp.transaction_categories?.color || LEGACY_COLORS[exp.category] || "#f43f5e";
-        if (!categoryTotals[catName]) categoryTotals[catName] = { value: 0, color: catColor };
-        categoryTotals[catName].value += Number(exp.amount);
+        if (!isTransfer) {
+          const catName = exp.transaction_categories?.name || LEGACY_LABELS[exp.category] || exp.category || "อื่นๆ";
+          const catColor = exp.transaction_categories?.color || LEGACY_COLORS[exp.category] || "#f43f5e";
+          if (!categoryTotals[catName]) categoryTotals[catName] = { value: 0, color: catColor };
+          categoryTotals[catName].value += Number(exp.amount);
+        }
       }
     });
 
     (Object.keys(ownerSummary) as Array<keyof OwnerBreakdownData>).forEach(key => {
-      ownerSummary[key].balance = ownerSummary[key].income - ownerSummary[key].expense;
+      ownerSummary[key].balance = 
+        (ownerSummary[key].income + ownerSummary[key].transferIn) - 
+        (ownerSummary[key].expense + ownerSummary[key].transferOut);
     });
 
     const pieData = Object.entries(categoryTotals)
@@ -107,14 +127,16 @@ export default function DashboardPage() {
       const mIncome = rawIncomes
         .filter((inc) => {
           const d = new Date(inc.created_at);
-          return d >= cycleStart && d <= cycleEnd;
+          const isTransfer = inc.note?.includes("รับเงินโอนจาก");
+          return d >= cycleStart && d <= cycleEnd && !isTransfer;
         })
         .reduce((sum, inc) => sum + Number(inc.amount), 0);
         
       const mExpense = rawExpenses
         .filter((exp) => {
           const d = new Date(exp.date);
-          return d >= cycleStart && d <= cycleEnd;
+          const isTransfer = exp.sub_category?.includes("โอนเงินไปที่");
+          return d >= cycleStart && d <= cycleEnd && !isTransfer;
         })
         .reduce((sum, exp) => sum + Number(exp.amount), 0);
 

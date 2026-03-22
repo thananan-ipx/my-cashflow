@@ -1,13 +1,12 @@
-// features/transactions/components/AddTransactionDialog.tsx
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { th } from "date-fns/locale";
-import { Calendar as CalendarIcon, Users } from "lucide-react";
+import { Calendar as CalendarIcon, Users, ArrowRightLeft } from "lucide-react";
 import { toast } from "sonner";
 
 import { Category, Debt } from "@/types";
 import { OWNER_OPTIONS } from "@/lib/constants";
-import { addIncome, addExpense } from "@/features/transactions/services/transaction.action";
+import { addIncome, addExpense, addTransfer } from "@/features/transactions/services/transaction.action";
 import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
@@ -33,11 +32,17 @@ export function AddTransactionDialog({ isOpen, onOpenChange, categories, activeD
   const [formDate, setFormDate] = useState<Date | undefined>(new Date());
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
+  
+  // States สำหรับรายรับ/รายจ่าย
   const [incomeCategoryId, setIncomeCategoryId] = useState("");
   const [expenseCategoryId, setExpenseCategoryId] = useState("");
   const [subCategory, setSubCategory] = useState("");
   const [selectedDebtId, setSelectedDebtId] = useState(""); 
   const [owner, setOwner] = useState("joint");
+
+  // States สำหรับโอนเงิน
+  const [fromOwner, setFromOwner] = useState("new");
+  const [toOwner, setToOwner] = useState("save");
 
   const resetForm = () => {
     setAmount("");
@@ -47,6 +52,8 @@ export function AddTransactionDialog({ isOpen, onOpenChange, categories, activeD
     setSubCategory("");
     setSelectedDebtId("");
     setOwner("joint");
+    setFromOwner("new");
+    setToOwner("save");
     setFormDate(new Date());
   };
 
@@ -54,7 +61,7 @@ export function AddTransactionDialog({ isOpen, onOpenChange, categories, activeD
   const expenseOptions = categories.filter((c) => c.type === "expense");
   const incomeOptions = categories.filter((c) => c.type === "income");
 
-  const handleSaveExpense = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveExpense = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!amount || !expenseCategoryId || !formDate) return toast.error("กรุณากรอกข้อมูลให้ครบถ้วน");
     if (isDebtCategory && !selectedDebtId) return toast.error("กรุณาเลือกหนี้สินที่ต้องการชำระ");
@@ -94,7 +101,7 @@ export function AddTransactionDialog({ isOpen, onOpenChange, categories, activeD
     }
   };
 
-  const handleSaveIncome = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveIncome = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!amount || !incomeCategoryId || !formDate) return toast.error("กรุณากรอกข้อมูลให้ครบถ้วน");
 
@@ -120,21 +127,49 @@ export function AddTransactionDialog({ isOpen, onOpenChange, categories, activeD
     }
   };
 
+  const handleSaveTransfer = async (e: React.SubmitEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!amount || !formDate) return toast.error("กรุณาระบุจำนวนเงินและวันที่");
+    if (fromOwner === toOwner) return toast.error("ไม่สามารถโอนเงินให้ตัวเองได้");
+
+    setIsSaving(true);
+    try {
+      await addTransfer({
+        amount: parseFloat(amount),
+        formDate: formDate,
+        fromOwner: fromOwner,
+        toOwner: toOwner,
+        note: note
+      });
+
+      toast.success("โยกเงินระหว่างกระเป๋าสำเร็จ");
+      onOpenChange(false);
+      resetForm();
+      onSuccess();
+    } catch (error) {
+      if (error instanceof Error) toast.error(error.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>เพิ่มรายการใหม่</DialogTitle>
-          <DialogDescription>เลือกประเภทเพื่อบันทึกรายรับหรือรายจ่าย</DialogDescription>
+          <DialogDescription>เลือกประเภทเพื่อบันทึกรายรับ รายจ่าย หรือโยกเงิน</DialogDescription>
         </DialogHeader>
         <Tabs defaultValue="expense" className="w-full mt-4">
-          <TabsList className="grid w-full grid-cols-2 mb-4">
+          <TabsList className="grid w-full grid-cols-3 mb-4">
             <TabsTrigger value="expense">รายจ่าย</TabsTrigger>
             <TabsTrigger value="income">รายรับ</TabsTrigger>
+            <TabsTrigger value="transfer">โยกเงิน</TabsTrigger>
           </TabsList>
 
+          {/* --- Tab รายจ่าย --- */}
           <TabsContent value="expense">
-            <form onSubmit={handleSaveExpense} className="space-y-4">
+             <form onSubmit={handleSaveExpense} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>จำนวนเงิน (บาท)</Label>
@@ -170,18 +205,14 @@ export function AddTransactionDialog({ isOpen, onOpenChange, categories, activeD
                 {isDebtCategory ? (
                   <div className="space-y-2">
                     <Label>เลือกหนี้สินที่ชำระ</Label>
-                    <Select 
-                      value={selectedDebtId} 
-                      onValueChange={(val) => {
+                    <Select value={selectedDebtId} onValueChange={(val) => {
                         setSelectedDebtId(val);
                         const debt = activeDebts.find((d) => d.id.toString() === val);
                         if (debt) {
                           setSubCategory(debt.name); 
                           if (!amount) setAmount(debt.monthly_payment.toString()); 
                         }
-                      }} 
-                      required
-                    >
+                      }} required>
                       <SelectTrigger><SelectValue placeholder="เลือกรายการหนี้" /></SelectTrigger>
                       <SelectContent>
                         {activeDebts.map((d) => (
@@ -220,9 +251,10 @@ export function AddTransactionDialog({ isOpen, onOpenChange, categories, activeD
             </form>
           </TabsContent>
 
+          {/* --- Tab รายรับ --- */}
           <TabsContent value="income">
             <form onSubmit={handleSaveIncome} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>จำนวนเงิน (บาท)</Label>
                   <Input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} required />
@@ -273,6 +305,69 @@ export function AddTransactionDialog({ isOpen, onOpenChange, categories, activeD
               <Button type="submit" className="w-full" disabled={isSaving}>{isSaving ? "กำลังบันทึก..." : "บันทึกรายรับ"}</Button>
             </form>
           </TabsContent>
+
+          {/* --- Tab โยกเงิน (ใหม่) --- */}
+          <TabsContent value="transfer">
+            <form onSubmit={handleSaveTransfer} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>จำนวนเงิน (บาท)</Label>
+                  <Input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+                </div>
+                <div className="space-y-2">
+                  <Label>วันที่</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !formDate && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formDate ? format(formDate, "PPP", { locale: th }) : <span>เลือกวันที่</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={formDate} onSelect={setFormDate} initialFocus locale={th} /></PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 bg-muted/30 p-3 rounded-lg border">
+                <div className="space-y-2 flex-1">
+                  <Label className="text-rose-500">จากกระเป๋า (หักเงิน)</Label>
+                  <Select value={fromOwner} onValueChange={setFromOwner} required>
+                    <SelectTrigger><SelectValue placeholder="เลือกกระเป๋าต้นทาง" /></SelectTrigger>
+                    <SelectContent>
+                      {OWNER_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="mt-6">
+                  <ArrowRightLeft className="w-5 h-5 text-muted-foreground" />
+                </div>
+
+                <div className="space-y-2 flex-1">
+                  <Label className="text-emerald-500">ไปที่กระเป๋า (รับเงิน)</Label>
+                  <Select value={toOwner} onValueChange={setToOwner} required>
+                    <SelectTrigger><SelectValue placeholder="เลือกกระเป๋าปลายทาง" /></SelectTrigger>
+                    <SelectContent>
+                      {OWNER_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>บันทึกเพิ่มเติม (Note)</Label>
+                <Textarea placeholder="เช่น คืนเงินค่าข้าว, เก็บเข้ากองกลาง..." value={note} onChange={(e) => setNote(e.target.value)} />
+              </div>
+              <Button type="submit" className="w-full" disabled={isSaving}>
+                {isSaving ? "กำลังบันทึก..." : "บันทึกการโยกเงิน"}
+              </Button>
+            </form>
+          </TabsContent>
+
         </Tabs>
       </DialogContent>
     </Dialog>

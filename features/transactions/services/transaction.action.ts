@@ -133,3 +133,44 @@ export async function updateExpense(id: number, data: {
 
   if (error) throw error;
 }
+
+export async function addTransfer(data: {
+  amount: number;
+  formDate: Date;
+  fromOwner: string;
+  toOwner: string;
+  note: string;
+}) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("ไม่พบข้อมูลผู้ใช้");
+
+  const { error: expError } = await supabase.from("expenses").insert({
+    user_id: user.id,
+    amount: data.amount,
+    category_id: null,
+    sub_category: `โอนเงินไปที่: ${data.toOwner}`,
+    is_fixed: false,
+    date: format(data.formDate, "yyyy-MM-dd"),
+    month: data.formDate.getMonth() + 1,
+    year: data.formDate.getFullYear(),
+    note: data.note || "รายการโยกเงินระหว่างกระเป๋า",
+    owner: data.fromOwner
+  });
+
+  if (expError) throw expError;
+
+  const { error: incError } = await supabase.from("income").insert({
+    user_id: user.id,
+    amount: data.amount,
+    category_id: null,
+    is_fixed: false,
+    month: data.formDate.getMonth() + 1,
+    year: data.formDate.getFullYear(),
+    note: data.note || `รับเงินโอนจาก: ${data.fromOwner}`,
+    created_at: data.formDate.toISOString(),
+    owner: data.toOwner
+  });
+
+  if (incError) throw incError;
+}
