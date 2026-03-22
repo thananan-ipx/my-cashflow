@@ -1,6 +1,5 @@
 "use client"
 
-import React from "react"
 import { usePathname } from "next/navigation"
 import {
   Breadcrumb,
@@ -11,24 +10,20 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 
-// กำหนดชื่อและการจับคู่ Path
 const routeMapping: Record<string, { label: string; parent?: string }> = {
-  "/": { label: "Dashboard" },
+  "/": { label: "แดชบอร์ด" },
   "/dashboard": { label: "แดชบอร์ด" },
-  "/tasks": { label: "จัดการงานเอกสาร" },
-  "/cases": { label: "จัดการงานเอกสาร" },
-  "/customers": { label: "จัดการลูกค้า", parent: "ตั้งค่า" },
-  "/users": { label: "จัดการผู้ใช้งาน", parent: "ตั้งค่า" },
-  "/document-types": { label: "จัดการประเภทเอกสาร", parent: "ตั้งค่า" },
+  "/transactions": { label: "รายรับ-รายจ่าย" },
+  "/debts": { label: "จัดการหนี้สิน" },
+  "/budgets": { label: "งบประมาณ & การออม" },
+  "/settings": { label: "ตั้งค่าระบบ" },
 }
 
 export function AppBreadcrumb() {
   const pathname = usePathname()
 
-  // หา Config ของ Path ปัจจุบัน
   let currentPathConfig = routeMapping[pathname]
 
-  // กรณีรองรับ Path ย่อย (เช่น /tasks/new) ให้ยึดตาม Path หลัก
   if (!currentPathConfig) {
     const mainPath = Object.keys(routeMapping).find(k => k !== "/" && pathname.startsWith(k))
     if (mainPath) {
@@ -36,7 +31,6 @@ export function AppBreadcrumb() {
     }
   }
 
-  // ถ้าหาไม่เจอ หรือเป็นหน้าแรก ให้แสดง Dashboard
   if (!currentPathConfig) {
     return (
       <Breadcrumb>
@@ -52,7 +46,6 @@ export function AppBreadcrumb() {
   return (
     <Breadcrumb>
       <BreadcrumbList>
-        {/* ส่วน Parent (เช่น Settings) */}
         {currentPathConfig.parent && (
           <>
             <BreadcrumbItem className="hidden md:block">
@@ -64,7 +57,6 @@ export function AppBreadcrumb() {
           </>
         )}
 
-        {/* ส่วนหน้าปัจจุบัน */}
         <BreadcrumbItem>
           <BreadcrumbPage>{currentPathConfig.label}</BreadcrumbPage>
         </BreadcrumbItem>
