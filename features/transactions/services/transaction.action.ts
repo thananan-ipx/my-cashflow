@@ -98,3 +98,38 @@ export async function deleteTransaction(id: number, type: "income" | "expense") 
   const { error } = await supabase.from(table).delete().eq("id", id);
   if (error) throw error;
 }
+
+export async function updateIncome(id: number, data: {
+  amount: number; categoryId: number; formDate: Date; note: string; owner: string;
+}) {
+  const supabase = createClient();
+  const { error } = await supabase.from("income").update({
+    amount: data.amount,
+    category_id: data.categoryId,
+    month: data.formDate.getMonth() + 1,
+    year: data.formDate.getFullYear(),
+    note: data.note,
+    created_at: data.formDate.toISOString(),
+    owner: data.owner
+  }).eq("id", id);
+
+  if (error) throw error;
+}
+
+export async function updateExpense(id: number, data: {
+  amount: number; categoryId: number; subCategory: string; formDate: Date; note: string; owner: string;
+}) {
+  const supabase = createClient();
+  const { error } = await supabase.from("expenses").update({
+    amount: data.amount,
+    category_id: data.categoryId,
+    sub_category: data.subCategory,
+    date: format(data.formDate, "yyyy-MM-dd"),
+    month: data.formDate.getMonth() + 1,
+    year: data.formDate.getFullYear(),
+    note: data.note,
+    owner: data.owner
+  }).eq("id", id);
+
+  if (error) throw error;
+}

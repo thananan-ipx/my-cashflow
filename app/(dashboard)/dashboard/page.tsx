@@ -17,6 +17,7 @@ import { fetchDashboardTransactions, DashboardExpense, DashboardIncome } from "@
 import { SummaryCards } from "@/features/dashboard/components/SummaryCards";
 import { ExpensePieChart } from "@/features/dashboard/components/ExpensePieChart";
 import { TrendBarChart } from "@/features/dashboard/components/TrendBarChart";
+import { OwnerBreakdown, OwnerBreakdownData } from "@/features/dashboard/components/OwnerBreakdown"; // <-- นำเข้า Component ใหม่
 
 export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
@@ -46,12 +47,17 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
-
+  }, [loadData, date?.to]);
   const processedData = useMemo(() => {
     let totalIncome = 0;
     let totalExpense = 0;
     const categoryTotals: Record<string, { value: number; color: string }> = {};
+
+    const ownerSummary: OwnerBreakdownData = {
+      joint: { income: 0, expense: 0, balance: 0 },
+      new: { income: 0, expense: 0, balance: 0 },
+      save: { income: 0, expense: 0, balance: 0 },
+    };
 
     const fromDate = date?.from ? startOfDay(date.from) : startOfMonth(new Date());
     const toDate = date?.to ? endOfDay(date.to) : endOfDay(new Date());
@@ -60,6 +66,11 @@ export default function DashboardPage() {
       const incDate = new Date(inc.created_at);
       if (incDate >= fromDate && incDate <= toDate) {
         totalIncome += Number(inc.amount);
+        
+        const ownerKey = (inc.owner || "joint") as keyof OwnerBreakdownData;
+        if (ownerSummary[ownerKey]) {
+          ownerSummary[ownerKey].income += Number(inc.amount);
+        }
       }
     });
 
@@ -68,14 +79,20 @@ export default function DashboardPage() {
       if (expDate >= fromDate && expDate <= toDate) {
         totalExpense += Number(exp.amount);
         
+        const ownerKey = (exp.owner || "joint") as keyof OwnerBreakdownData;
+        if (ownerSummary[ownerKey]) {
+          ownerSummary[ownerKey].expense += Number(exp.amount);
+        }
+        
         const catName = exp.transaction_categories?.name || LEGACY_LABELS[exp.category] || exp.category || "อื่นๆ";
         const catColor = exp.transaction_categories?.color || LEGACY_COLORS[exp.category] || "#f43f5e";
-        
-        if (!categoryTotals[catName]) {
-          categoryTotals[catName] = { value: 0, color: catColor };
-        }
+        if (!categoryTotals[catName]) categoryTotals[catName] = { value: 0, color: catColor };
         categoryTotals[catName].value += Number(exp.amount);
       }
+    });
+
+    (Object.keys(ownerSummary) as Array<keyof OwnerBreakdownData>).forEach(key => {
+      ownerSummary[key].balance = ownerSummary[key].income - ownerSummary[key].expense;
     });
 
     const pieData = Object.entries(categoryTotals)
@@ -102,13 +119,14 @@ export default function DashboardPage() {
 
     return {
       summary: { income: totalIncome, expense: totalExpense, balance: totalIncome - totalExpense },
+      ownerSummary,
       pieData,
       trendData
     };
   }, [rawExpenses, rawIncomes, date]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">ภาพรวมการเงิน</h1>
@@ -143,6 +161,8 @@ export default function DashboardPage() {
         expense={processedData.summary.expense} 
         balance={processedData.summary.balance} 
       />
+
+      <OwnerBreakdown data={processedData.ownerSummary} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <ExpensePieChart data={processedData.pieData} isLoading={isLoading} />

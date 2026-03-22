@@ -7,6 +7,7 @@ export interface DashboardExpense {
   category: string;
   month: number;
   year: number;
+  owner: string;
   transaction_categories?: { name: string; color: string } | null;
 }
 
@@ -16,6 +17,7 @@ export interface DashboardIncome {
   created_at: string;
   month: number;
   year: number;
+  owner: string;
   transaction_categories?: { name: string; color: string } | null;
 }
 
@@ -30,12 +32,12 @@ export async function fetchDashboardTransactions(earliestDate: Date) {
   const [expensesRes, incomesRes] = await Promise.all([
     supabase
       .from("expenses")
-      .select(`id, amount, date, category, month, year, transaction_categories(name, color)`)
+      .select(`id, amount, date, category, month, year, owner, transaction_categories(name, color)`)
       .eq("user_id", user.id)
       .gte("date", earliestDateOnly),
     supabase
       .from("income")
-      .select(`id, amount, created_at, month, year, transaction_categories(name, color)`)
+      .select(`id, amount, created_at, month, year, owner, transaction_categories(name, color)`)
       .eq("user_id", user.id)
       .gte("created_at", earliestDateStr)
   ]);

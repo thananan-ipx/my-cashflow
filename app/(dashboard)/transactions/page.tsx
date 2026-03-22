@@ -1,10 +1,9 @@
-// app/(dashboard)/transactions/page.tsx
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { format, startOfMonth, endOfMonth, startOfDay, endOfDay } from "date-fns";
 import { th } from "date-fns/locale";
-import { Calendar as CalendarIcon, PlusCircle, Filter } from "lucide-react";
+import { Calendar as CalendarIcon, PlusCircle, Filter, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { DateRange } from "react-day-picker";
 
@@ -21,8 +20,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-// Components ที่แยกออกมา
 import { AddTransactionDialog } from "@/features/transactions/components/AddTransactionDialog";
+import { EditTransactionDialog } from "@/features/transactions/components/EditTransactionDialog";
 import { TransactionTable } from "@/features/transactions/components/TransactionTable";
 
 export default function TransactionsPage() {
@@ -43,6 +42,7 @@ export default function TransactionsPage() {
 
   // UI States
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -50,7 +50,6 @@ export default function TransactionsPage() {
       const fromDate = date?.from ? startOfDay(date.from).toISOString() : null;
       const toDate = date?.to ? endOfDay(date.to).toISOString() : null;
 
-      // โหลดทั้ง Categories, Debts และ Transactions พร้อมกันเพื่อความรวดเร็ว
       const [cats, debts, txs] = await Promise.all([
         fetchCategories(),
         fetchDebts(),
@@ -82,7 +81,6 @@ export default function TransactionsPage() {
     }
   };
 
-  // ใช้ useMemo สำหรับการกรองข้อมูลแบบ Real-time โดยไม่ต้องโหลดซ้ำ
   const filteredTransactions = useMemo(() => {
     return transactions.filter((t) => {
       const matchType = filterType === "all" || t.type === filterType;
@@ -91,9 +89,16 @@ export default function TransactionsPage() {
     });
   }, [transactions, filterType, filterOwner]);
 
+  const handleClearFilters = () => {
+    setDate(undefined);
+    setFilterType("all");
+    setFilterOwner("all");
+  };
+
+  const hasFilters = date !== undefined || filterType !== "all" || filterOwner !== "all";
+
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      {/* Header & Add Button */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">ประวัติรายการ</h1>
@@ -113,9 +118,17 @@ export default function TransactionsPage() {
         onSuccess={loadData} 
       />
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 bg-muted/30 p-4 rounded-lg border">
-        <div className="space-y-1.5 flex-1 max-w-70">
+      <EditTransactionDialog
+        isOpen={!!editingTransaction}
+        onOpenChange={(open) => !open && setEditingTransaction(null)}
+        transaction={editingTransaction}
+        categories={categories}
+        onSuccess={loadData}
+      />
+
+      {/* ส่วนจัดการตัวกรอง (Filters) */}
+      <div className="flex flex-col sm:flex-row flex-wrap gap-4 bg-muted/30 p-4 rounded-lg border items-end">
+        <div className="space-y-1.5 flex-1 min-w-60 max-w-75">
           <Label className="text-xs text-muted-foreground flex items-center gap-1"><Filter className="w-3 h-3"/> ช่วงวันที่</Label>
           <Popover>
             <PopoverTrigger asChild>
@@ -125,7 +138,7 @@ export default function TransactionsPage() {
                   date.to ? (
                     <>{format(date.from, "d MMM yyyy", { locale: th })} - {format(date.to, "d MMM yyyy", { locale: th })}</>
                   ) : (format(date.from, "d MMM yyyy", { locale: th }))
-                ) : (<span>เลือกช่วงเวลา</span>)}
+                ) : (<span>แสดงทั้งหมด (ทุกช่วงเวลา)</span>)}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
@@ -134,7 +147,7 @@ export default function TransactionsPage() {
           </Popover>
         </div>
 
-        <div className="space-y-1.5 flex-1 sm:max-w-45">
+        <div className="space-y-1.5 flex-1 min-w-37.5 max-w-50">
           <Label className="text-xs text-muted-foreground">ของใคร?</Label>
           <Select value={filterOwner} onValueChange={setFilterOwner}>
             <SelectTrigger className="bg-background">
@@ -149,7 +162,7 @@ export default function TransactionsPage() {
           </Select>
         </div>
 
-        <div className="space-y-1.5 flex-1 sm:max-w-45">
+        <div className="space-y-1.5 flex-1 min-w-37.5 max-w-50">
           <Label className="text-xs text-muted-foreground">ประเภทรายการ</Label>
           <Select value={filterType} onValueChange={(val) => setFilterType(val as "all" | "income" | "expense")}>
             <SelectTrigger className="bg-background">
@@ -162,12 +175,23 @@ export default function TransactionsPage() {
             </SelectContent>
           </Select>
         </div>
+
+        {hasFilters && (
+          <Button 
+            variant="ghost" 
+            onClick={handleClearFilters}
+            className="text-muted-foreground hover:text-foreground mb-0.5"
+          >
+            <XCircle className="w-4 h-4 mr-2" />
+            ล้างตัวกรอง
+          </Button>
+        )}
       </div>
 
-      {/* Table Component */}
       <TransactionTable 
         transactions={filteredTransactions} 
         isLoading={isLoading} 
+        onEdit={setEditingTransaction} 
         onDelete={handleDelete} 
       />
     </div>

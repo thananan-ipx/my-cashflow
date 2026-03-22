@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { th } from "date-fns/locale";
-import { Trash2, Loader2 } from "lucide-react";
+import { Trash2, Pencil, Loader2 } from "lucide-react"; // <-- เพิ่ม Pencil
 
 import { Transaction } from "@/types";
 import { OWNER_OPTIONS } from "@/lib/constants";
@@ -12,10 +12,11 @@ import { Button } from "@/components/ui/button";
 interface TransactionTableProps {
   transactions: Transaction[];
   isLoading: boolean;
+  onEdit: (transaction: Transaction) => void;
   onDelete: (id: number, type: "income" | "expense") => void;
 }
 
-export function TransactionTable({ transactions, isLoading, onDelete }: TransactionTableProps) {
+export function TransactionTable({ transactions, isLoading, onEdit, onDelete }: TransactionTableProps) {
   return (
     <div className="border rounded-lg bg-card overflow-hidden">
       <Table>
@@ -26,7 +27,7 @@ export function TransactionTable({ transactions, isLoading, onDelete }: Transact
             <TableHead className="hidden md:table-cell w-30">เจ้าของ</TableHead>
             <TableHead className="hidden lg:table-cell">รายละเอียด</TableHead>
             <TableHead className="text-right">จำนวนเงิน (บาท)</TableHead>
-            <TableHead className="w-20 text-center">จัดการ</TableHead>
+            <TableHead className="w-25 text-center">จัดการ</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -78,14 +79,24 @@ export function TransactionTable({ transactions, isLoading, onDelete }: Transact
                     {tx.type === "income" ? "+" : "-"}฿{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </TableCell>
                   <TableCell className="text-center">
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="text-muted-foreground hover:text-rose-500 hover:bg-rose-50"
-                      onClick={() => onDelete(tx.id, tx.type)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <div className="flex justify-center gap-1">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="text-muted-foreground hover:text-blue-500 hover:bg-blue-50"
+                        onClick={() => onEdit(tx)}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="text-muted-foreground hover:text-rose-500 hover:bg-rose-50"
+                        onClick={() => onDelete(tx.id, tx.type)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               )
