@@ -1,30 +1,23 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { format, subMonths, startOfMonth, endOfMonth, startOfDay, endOfDay } from "date-fns";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { format, subMonths } from "date-fns";
 import { th } from "date-fns/locale";
-import { DateRange } from "react-day-picker";
 import { toast } from "sonner";
-import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
+import { Loader2, Calendar as CalendarIcon } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
-
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LEGACY_LABELS, LEGACY_COLORS } from "@/lib/constants";
 import { fetchDashboardTransactions, DashboardExpense, DashboardIncome } from "@/features/dashboard/services/dashboard.action";
 import { SummaryCards } from "@/features/dashboard/components/SummaryCards";
 import { ExpensePieChart } from "@/features/dashboard/components/ExpensePieChart";
 import { TrendBarChart } from "@/features/dashboard/components/TrendBarChart";
-import { OwnerBreakdown, OwnerBreakdownData } from "@/features/dashboard/components/OwnerBreakdown"; // <-- นำเข้า Component ใหม่
+import { OwnerBreakdown, OwnerBreakdownData } from "@/features/dashboard/components/OwnerBreakdown";
 
 export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
-  const [date, setDate] = useState<DateRange | undefined>({
-    from: startOfMonth(new Date()),
-    to: endOfMonth(new Date()),
-  });
+  
+  const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
 
   const [rawExpenses, setRawExpenses] = useState<DashboardExpense[]>([]);
   const [rawIncomes, setRawIncomes] = useState<DashboardIncome[]>([]);
@@ -32,8 +25,8 @@ export default function DashboardPage() {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const sixMonthsAgo = startOfMonth(subMonths(new Date(), 5));
-      const earliestDate = date?.from && date.from < sixMonthsAgo ? date.from : sixMonthsAgo;
+      const oldestTrendMonth = subMonths(selectedMonth, 5);
+      const earliestDate = new Date(oldestTrendMonth.getFullYear(), oldestTrendMonth.getMonth(), 25, 0, 0, 0, 0);
 
       const { expenses, incomes } = await fetchDashboardTransactions(earliestDate);
       setRawExpenses(expenses);
@@ -43,11 +36,13 @@ export default function DashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [date?.from]);
+  }, [selectedMonth]);
 
   useEffect(() => {
     loadData();
-  }, [loadData, date?.to]);
+  }, [loadData]);
+
+  // --- Data Processing ---
   const processedData = useMemo(() => {
     let totalIncome = 0;
     let totalExpense = 0;
@@ -59,12 +54,12 @@ export default function DashboardPage() {
       save: { income: 0, expense: 0, balance: 0 },
     };
 
-    const fromDate = date?.from ? startOfDay(date.from) : startOfMonth(new Date());
-    const toDate = date?.to ? endOfDay(date.to) : endOfDay(new Date());
+    const currentCycleStart = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 25, 0, 0, 0, 0);
+    const currentCycleEnd = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 24, 23, 59, 59, 999);
 
     rawIncomes.forEach((inc) => {
       const incDate = new Date(inc.created_at);
-      if (incDate >= fromDate && incDate <= toDate) {
+      if (incDate >= currentCycleStart && incDate <= currentCycleEnd) {
         totalIncome += Number(inc.amount);
         
         const ownerKey = (inc.owner || "joint") as keyof OwnerBreakdownData;
@@ -76,7 +71,7 @@ export default function DashboardPage() {
 
     rawExpenses.forEach((exp) => {
       const expDate = new Date(exp.date);
-      if (expDate >= fromDate && expDate <= toDate) {
+      if (expDate >= currentCycleStart && expDate <= currentCycleEnd) {
         totalExpense += Number(exp.amount);
         
         const ownerKey = (exp.owner || "joint") as keyof OwnerBreakdownData;
@@ -101,17 +96,26 @@ export default function DashboardPage() {
 
     const trendData = [];
     for (let i = 5; i >= 0; i--) {
-      const targetMonth = subMonths(new Date(), i);
-      const m = targetMonth.getMonth() + 1;
-      const y = targetMonth.getFullYear();
+      const targetMonth = subMonths(selectedMonth, i);
+      const mYear = targetMonth.getFullYear();
+      const mMonth = targetMonth.getMonth();
       const monthLabel = format(targetMonth, "MMM", { locale: th });
 
+      const cycleStart = new Date(mYear, mMonth, 25, 0, 0, 0, 0);
+      const cycleEnd = new Date(mYear, mMonth + 1, 24, 23, 59, 59, 999);
+
       const mIncome = rawIncomes
-        .filter((inc) => inc.month === m && inc.year === y)
+        .filter((inc) => {
+          const d = new Date(inc.created_at);
+          return d >= cycleStart && d <= cycleEnd;
+        })
         .reduce((sum, inc) => sum + Number(inc.amount), 0);
         
       const mExpense = rawExpenses
-        .filter((exp) => exp.month === m && exp.year === y)
+        .filter((exp) => {
+          const d = new Date(exp.date);
+          return d >= cycleStart && d <= cycleEnd;
+        })
         .reduce((sum, exp) => sum + Number(exp.amount), 0);
 
       trendData.push({ month: monthLabel, income: mIncome, expense: mExpense });
@@ -121,38 +125,68 @@ export default function DashboardPage() {
       summary: { income: totalIncome, expense: totalExpense, balance: totalIncome - totalExpense },
       ownerSummary,
       pieData,
-      trendData
+      trendData,
+      currentCycleStart,
+      currentCycleEnd
     };
-  }, [rawExpenses, rawIncomes, date]);
+  }, [rawExpenses, rawIncomes, selectedMonth]);
+
+  const handleMonthChange = (val: string) => {
+    const newDate = new Date(selectedMonth);
+    newDate.setMonth(parseInt(val));
+    setSelectedMonth(newDate);
+  };
+
+  const handleYearChange = (val: string) => {
+    const newDate = new Date(selectedMonth);
+    newDate.setFullYear(parseInt(val));
+    setSelectedMonth(newDate);
+  };
 
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">ภาพรวมการเงิน</h1>
-          {isLoading && (
-            <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-              <Loader2 className="w-3 h-3 animate-spin"/> กำลังคำนวณข้อมูล...
-            </p>
-          )}
+          <div className="flex items-center gap-2 mt-1">
+            {isLoading ? (
+              <p className="text-sm text-muted-foreground flex items-center gap-1">
+                <Loader2 className="w-3 h-3 animate-spin"/> กำลังคำนวณข้อมูล...
+              </p>
+            ) : (
+              <p className="text-sm text-primary font-medium flex items-center gap-1.5 bg-primary/10 px-2.5 py-1 rounded-md">
+                <CalendarIcon className="w-3.5 h-3.5" />
+                รอบบิล: {format(processedData.currentCycleStart, "d MMM yy", { locale: th })} - {format(processedData.currentCycleEnd, "d MMM yy", { locale: th })}
+              </p>
+            )}
+          </div>
         </div>
         
         <div className="flex items-center gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button id="date" variant={"outline"} className={cn("w-65 justify-start text-left font-normal bg-card", !date && "text-muted-foreground")}>
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {date?.from ? (
-                  date.to ? (
-                    <>{format(date.from, "d MMM yyyy", { locale: th })} - {format(date.to, "d MMM yyyy", { locale: th })}</>
-                  ) : (format(date.from, "d MMM yyyy", { locale: th }))
-                ) : (<span>เลือกช่วงเวลา</span>)}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <Calendar mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2} locale={th} />
-            </PopoverContent>
-          </Popover>
+          <Select value={selectedMonth.getMonth().toString()} onValueChange={handleMonthChange}>
+            <SelectTrigger className="w-35 bg-card">
+              <SelectValue placeholder="เลือกเดือน" />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 12 }).map((_, i) => (
+                <SelectItem key={i} value={i.toString()}>
+                  {format(new Date(2024, i, 1), "MMMM", { locale: th })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={selectedMonth.getFullYear().toString()} onValueChange={handleYearChange}>
+            <SelectTrigger className="w-25 bg-card">
+              <SelectValue placeholder="เลือกปี" />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 5 }).map((_, i) => {
+                const year = new Date().getFullYear() - 2 + i;
+                return <SelectItem key={year} value={year.toString()}>{year + 543}</SelectItem>;
+              })}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
