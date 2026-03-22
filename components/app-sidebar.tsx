@@ -8,6 +8,7 @@ import {
   Wallet,
   CreditCard,
   PiggyBank,
+  Tags,
 } from "lucide-react"
 import { usePathname } from "next/navigation"
 
@@ -60,6 +61,14 @@ const data = {
       url: "/settings",
       icon: Settings2,
       isActive: false,
+      items: [
+        {
+          title: "ประเภทรายการ",
+          url: "/categories",
+          icon: Tags,
+          isActive: false,
+        },
+      ],
     },
   ],
 }

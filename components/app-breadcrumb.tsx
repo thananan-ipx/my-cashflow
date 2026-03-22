@@ -16,6 +16,7 @@ const routeMapping: Record<string, { label: string; parent?: string }> = {
   "/transactions": { label: "รายรับ-รายจ่าย" },
   "/debts": { label: "จัดการหนี้สิน" },
   "/budgets": { label: "งบประมาณ & การออม" },
+  "/categories": { label: "จัดการประเภทรายการ", parent: "ตั้งค่าระบบ" },
   "/settings": { label: "ตั้งค่าระบบ" },
 }
 
