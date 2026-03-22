@@ -1,22 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { PlusCircle, Trash2, Tags, Loader2 } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { PlusCircle } from "lucide-react";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -26,15 +17,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-type Category = {
-  id: number;
-  type: "income" | "expense";
-  name: string;
-  color: string;
-};
+import { Category } from "@/types";
+import { fetchCategories, createCategory, deleteCategory } from "@/features/categories/services/category.action";
+import { CategoryTable } from "@/features/categories/components/CategoryTable";
 
 export default function CategoriesPage() {
-  const supabase = createClient();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -45,62 +32,44 @@ export default function CategoriesPage() {
   const [formName, setFormName] = useState("");
   const [formColor, setFormColor] = useState("#94a3b8");
 
-  const fetchCategories = async () => {
+  const loadCategories = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from("transaction_categories")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: true });
-
-      if (error) throw error;
-      setCategories(data || []);
-    } catch (error: any) {
-      toast.error("ดึงข้อมูลหมวดหมู่ล้มเหลว: " + error.message);
+      const data = await fetchCategories();
+      setCategories(data);
+    } catch (error) {
+      if (error instanceof Error) {
+        toast.error("ดึงข้อมูลหมวดหมู่ล้มเหลว: " + error.message);
+      }
     } finally {
       setIsLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchCategories();
   }, []);
 
-  const handleSaveCategory = async (e: React.FormEvent) => {
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories]);
+
+  const handleSaveCategory = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!formName) return toast.error("กรุณากรอกชื่อหมวดหมู่");
 
     setIsSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("ไม่พบข้อมูลผู้ใช้");
-
-      // เช็คชื่อซ้ำ
       const isDuplicate = categories.some(
         (c) => c.name.toLowerCase() === formName.toLowerCase() && c.type === formType
       );
       if (isDuplicate) throw new Error("มีหมวดหมู่นี้อยู่แล้ว");
 
-      const { error } = await supabase.from("transaction_categories").insert({
-        user_id: user.id,
-        type: formType,
-        name: formName,
-        color: formColor,
-      });
+      await createCategory(formType, formName, formColor);
 
-      if (error) throw error;
-      
       toast.success("เพิ่มหมวดหมู่สำเร็จ");
       setIsAddOpen(false);
       setFormName("");
       setFormColor("#94a3b8");
-      fetchCategories();
-    } catch (error: any) {
-      toast.error(error.message);
+      loadCategories();
+    } catch (error) {
+      if (error instanceof Error) toast.error(error.message);
     } finally {
       setIsSaving(false);
     }
@@ -110,18 +79,16 @@ export default function CategoriesPage() {
     if (!confirm("คุณแน่ใจหรือไม่ที่จะลบหมวดหมู่นี้? (รายการเดิมที่ใช้หมวดหมู่นี้จะไม่ถูกลบ แต่กราฟอาจแสดงเป็น 'อื่นๆ')")) return;
 
     try {
-      const { error } = await supabase.from("transaction_categories").delete().eq("id", id);
-      if (error) throw error;
-
+      await deleteCategory(id);
       toast.success("ลบหมวดหมู่สำเร็จ");
-      fetchCategories();
-    } catch (error: any) {
-      toast.error("ลบข้อมูลล้มเหลว: " + error.message);
+      loadCategories();
+    } catch (error) {
+      if (error instanceof Error) toast.error("ลบข้อมูลล้มเหลว: " + error.message);
     }
   };
 
-  const expensesCats = categories.filter(c => c.type === "expense");
-  const incomeCats = categories.filter(c => c.type === "income");
+  const expensesCats = categories.filter((c) => c.type === "expense");
+  const incomeCats = categories.filter((c) => c.type === "income");
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -190,69 +157,21 @@ export default function CategoriesPage() {
         </TabsList>
 
         <TabsContent value="expense">
-          <div className="border rounded-lg bg-card overflow-hidden">
-            <Table>
-              <TableHeader className="bg-muted/50">
-                <TableRow>
-                  <TableHead className="w-[80px]">สี</TableHead>
-                  <TableHead>ชื่อหมวดหมู่</TableHead>
-                  <TableHead className="w-[100px] text-center">จัดการ</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow><TableCell colSpan={3} className="h-24 text-center"><Loader2 className="w-4 h-4 animate-spin mx-auto text-muted-foreground"/></TableCell></TableRow>
-                ) : expensesCats.length === 0 ? (
-                  <TableRow><TableCell colSpan={3} className="h-24 text-center text-muted-foreground">ยังไม่มีหมวดหมู่รายจ่าย</TableCell></TableRow>
-                ) : (
-                  expensesCats.map((cat) => (
-                    <TableRow key={cat.id}>
-                      <TableCell><div className="w-6 h-6 rounded-full border shadow-sm" style={{ backgroundColor: cat.color }} /></TableCell>
-                      <TableCell className="font-medium">{cat.name}</TableCell>
-                      <TableCell className="text-center">
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(cat.id)} className="text-muted-foreground hover:text-rose-500">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          <CategoryTable 
+            categories={expensesCats} 
+            isLoading={isLoading} 
+            emptyMessage="ยังไม่มีหมวดหมู่รายจ่าย" 
+            onDelete={handleDelete} 
+          />
         </TabsContent>
 
         <TabsContent value="income">
-          <div className="border rounded-lg bg-card overflow-hidden">
-            <Table>
-              <TableHeader className="bg-muted/50">
-                <TableRow>
-                  <TableHead className="w-[80px]">สี</TableHead>
-                  <TableHead>ชื่อหมวดหมู่</TableHead>
-                  <TableHead className="w-[100px] text-center">จัดการ</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow><TableCell colSpan={3} className="h-24 text-center"><Loader2 className="w-4 h-4 animate-spin mx-auto text-muted-foreground"/></TableCell></TableRow>
-                ) : incomeCats.length === 0 ? (
-                  <TableRow><TableCell colSpan={3} className="h-24 text-center text-muted-foreground">ยังไม่มีหมวดหมู่รายรับ</TableCell></TableRow>
-                ) : (
-                  incomeCats.map((cat) => (
-                    <TableRow key={cat.id}>
-                      <TableCell><div className="w-6 h-6 rounded-full border shadow-sm" style={{ backgroundColor: cat.color }} /></TableCell>
-                      <TableCell className="font-medium">{cat.name}</TableCell>
-                      <TableCell className="text-center">
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(cat.id)} className="text-muted-foreground hover:text-rose-500">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          <CategoryTable 
+            categories={incomeCats} 
+            isLoading={isLoading} 
+            emptyMessage="ยังไม่มีหมวดหมู่รายรับ" 
+            onDelete={handleDelete} 
+          />
         </TabsContent>
       </Tabs>
     </div>
