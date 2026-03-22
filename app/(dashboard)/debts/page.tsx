@@ -1,0 +1,191 @@
+// app/(dashboard)/debts/page.tsx
+"use client";
+
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { PlusCircle } from "lucide-react";
+import { toast } from "sonner";
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+
+import { Debt } from "@/types";
+import { fetchDebts, createDebt } from "@/features/debts/services/debt.action";
+import { DebtCard } from "@/features/debts/components/DebtCard";
+
+export default function DebtsPage() {
+  const [debts, setDebts] = useState<Debt[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const [name, setName] = useState("");
+  const [totalAmount, setTotalAmount] = useState("");
+  const [monthlyPayment, setMonthlyPayment] = useState("");
+  const [remainingInstallments, setRemainingInstallments] = useState("");
+  const [interestRate, setInterestRate] = useState("");
+
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const data = await fetchDebts();
+      setDebts(data);
+    } catch (error) {
+      if (error instanceof Error) toast.error("ดึงข้อมูลหนี้สินล้มเหลว: " + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleAddDebt = async (e: React.SubmitEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!name || !totalAmount || !monthlyPayment) {
+      return toast.error("กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน");
+    }
+
+    setIsSaving(true);
+    try {
+      await createDebt(
+        name,
+        parseFloat(totalAmount),
+        parseFloat(monthlyPayment),
+        remainingInstallments ? parseInt(remainingInstallments) : null,
+        interestRate ? parseFloat(interestRate) : null
+      );
+
+      toast.success("เพิ่มรายการหนี้สำเร็จ");
+      setIsDialogOpen(false);
+      
+      setName("");
+      setTotalAmount("");
+      setMonthlyPayment("");
+      setRemainingInstallments("");
+      setInterestRate("");
+      
+      loadData();
+    } catch (error) {
+      if (error instanceof Error) toast.error(error.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const summary = useMemo(() => {
+    const totalMonthly = debts.reduce((sum, debt) => sum + Number(debt.monthly_payment), 0);
+    const totalRemaining = debts.reduce((sum, debt) => {
+      if (debt.remaining_installments) {
+        return sum + (debt.remaining_installments * debt.monthly_payment);
+      }
+      return sum + Number(debt.total_amount);
+    }, 0);
+
+    return { totalMonthly, totalRemaining };
+  }, [debts]);
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">จัดการหนี้สิน</h1>
+          <p className="text-muted-foreground mt-2">ติดตามและวางแผนการปลดหนี้ของคุณ</p>
+        </div>
+
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="flex items-center gap-2">
+              <PlusCircle className="w-4 h-4" /> เพิ่มหนี้ใหม่
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>เพิ่มรายการหนี้ใหม่</DialogTitle>
+              <DialogDescription>กรอกรายละเอียดหนี้ของคุณเพื่อช่วยในการติดตามและคำนวณ</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleAddDebt} className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>ชื่อรายการ (เช่น รถดำ, KTC)</Label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} required />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>ยอดหนี้ทั้งหมด (บาท)</Label>
+                  <Input type="number" value={totalAmount} onChange={(e) => setTotalAmount(e.target.value)} required />
+                </div>
+                <div className="space-y-2">
+                  <Label>ยอดผ่อนต่อเดือน (บาท)</Label>
+                  <Input type="number" value={monthlyPayment} onChange={(e) => setMonthlyPayment(e.target.value)} required />
+                </div>
+                <div className="space-y-2">
+                  <Label>จำนวนงวดที่เหลือ (เดือน)</Label>
+                  <Input type="number" value={remainingInstallments} onChange={(e) => setRemainingInstallments(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>ดอกเบี้ยต่อปี (% - ถ้ามี)</Label>
+                  <Input type="number" step="0.01" value={interestRate} onChange={(e) => setInterestRate(e.target.value)} />
+                </div>
+              </div>
+              <Button type="submit" className="w-full mt-4" disabled={isSaving}>
+                {isSaving ? "กำลังบันทึก..." : "บันทึกรายการ"}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* การ์ดสรุปหนี้สินรวม */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="bg-rose-50 border-rose-100 dark:bg-rose-950/20 dark:border-rose-900/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-rose-800 dark:text-rose-400">ภาระผ่อนต่อเดือนรวม</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-rose-600 dark:text-rose-500">
+              ฿{summary.totalMonthly.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-slate-50 border-slate-100 dark:bg-slate-900/50 dark:border-slate-800">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-800 dark:text-slate-400">ยอดหนี้คงเหลือโดยประมาณ</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-slate-700 dark:text-slate-300">
+              ฿{summary.totalRemaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* รายการหนี้สิน */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {isLoading ? (
+          <p className="text-muted-foreground p-4">กำลังโหลดข้อมูล...</p>
+        ) : debts.length === 0 ? (
+          <Card className="col-span-full p-8 text-center border-dashed">
+            <p className="text-muted-foreground mb-4">ยังไม่มีรายการหนี้สินในระบบ</p>
+            <Button variant="outline" onClick={() => setIsDialogOpen(true)}>
+              เพิ่มรายการแรกของคุณ
+            </Button>
+          </Card>
+        ) : (
+          debts.map((debt) => (
+            <DebtCard key={debt.id} debt={debt} />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
