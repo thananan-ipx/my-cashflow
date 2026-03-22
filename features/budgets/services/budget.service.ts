@@ -10,7 +10,7 @@ export async function fetchBudgetsSummary(month: number, year: number): Promise<
   const { data: budgetData, error: budgetError } = await supabase
     .from("budgets")
     .select("*")
-    .eq("user_id", user.id)
+    // .eq("user_id", user.id)
     .eq("month", month)
     .eq("year", year);
   if (budgetError) throw budgetError;
@@ -18,7 +18,7 @@ export async function fetchBudgetsSummary(month: number, year: number): Promise<
   const { data: expenseData, error: expenseError } = await supabase
     .from("expenses")
     .select("category, amount")
-    .eq("user_id", user.id)
+    // .eq("user_id", user.id)
     .eq("month", month)
     .eq("year", year);
   if (expenseError) throw expenseError;
