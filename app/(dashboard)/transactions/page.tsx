@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { format, startOfMonth, endOfMonth, startOfDay, endOfDay } from "date-fns";
+import { format, startOfDay, endOfDay } from "date-fns";
 import { th } from "date-fns/locale";
-import { Calendar as CalendarIcon, PlusCircle, Filter, XCircle } from "lucide-react";
+import { Calendar as CalendarIcon, PlusCircle, Filter, XCircle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { DateRange } from "react-day-picker";
 
@@ -12,7 +12,7 @@ import { OWNER_OPTIONS } from "@/lib/constants";
 import { fetchTransactions, deleteTransaction } from "@/features/transactions/services/transaction.action";
 import { fetchCategories } from "@/features/categories/services/category.action";
 import { fetchDebts } from "@/features/debts/services/debt.action";
-import { cn } from "@/lib/utils";
+import { cn, getBillingCycleRange } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -35,10 +35,18 @@ export default function TransactionsPage() {
   // Filter States
   const [filterType, setFilterType] = useState<"all" | "income" | "expense">("all");
   const [filterOwner, setFilterOwner] = useState<string>("all");
-  const [date, setDate] = useState<DateRange | undefined>({
-    from: startOfMonth(new Date()),
-    to: endOfMonth(new Date()),
-  });
+  
+  // Date/Cycle States
+  const [isCustomRange, setIsCustomRange] = useState(false);
+  const [selectedCycle, setSelectedCycle] = useState<Date>(new Date());
+  const [date, setDate] = useState<DateRange | undefined>(getBillingCycleRange(new Date()));
+
+  // Sync date with selectedCycle when not in custom range
+  useEffect(() => {
+    if (!isCustomRange) {
+      setDate(getBillingCycleRange(selectedCycle));
+    }
+  }, [selectedCycle, isCustomRange]);
 
   // UI States
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -90,12 +98,25 @@ export default function TransactionsPage() {
   }, [transactions, filterType, filterOwner]);
 
   const handleClearFilters = () => {
-    setDate(undefined);
+    setIsCustomRange(false);
+    setSelectedCycle(new Date());
     setFilterType("all");
     setFilterOwner("all");
   };
 
-  const hasFilters = date !== undefined || filterType !== "all" || filterOwner !== "all";
+  const handleMonthChange = (val: string) => {
+    const newDate = new Date(selectedCycle);
+    newDate.setMonth(parseInt(val));
+    setSelectedCycle(newDate);
+  };
+
+  const handleYearChange = (val: string) => {
+    const newDate = new Date(selectedCycle);
+    newDate.setFullYear(parseInt(val));
+    setSelectedCycle(newDate);
+  };
+
+  const hasFilters = isCustomRange || filterType !== "all" || filterOwner !== "all" || selectedCycle.getMonth() !== new Date().getMonth() || selectedCycle.getFullYear() !== new Date().getFullYear();
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -127,65 +148,121 @@ export default function TransactionsPage() {
       />
 
       {/* ส่วนจัดการตัวกรอง (Filters) */}
-      <div className="flex flex-col sm:flex-row flex-wrap gap-4 bg-muted/30 p-4 rounded-lg border items-end">
-        <div className="space-y-1.5 flex-1 min-w-60 max-w-75">
-          <Label className="text-xs text-muted-foreground flex items-center gap-1"><Filter className="w-3 h-3"/> ช่วงวันที่</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal bg-background", !date && "text-muted-foreground")}>
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {date?.from ? (
-                  date.to ? (
-                    <>{format(date.from, "d MMM yyyy", { locale: th })} - {format(date.to, "d MMM yyyy", { locale: th })}</>
-                  ) : (format(date.from, "d MMM yyyy", { locale: th }))
-                ) : (<span>แสดงทั้งหมด (ทุกช่วงเวลา)</span>)}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2} locale={th} />
-            </PopoverContent>
-          </Popover>
+      <div className="flex flex-col gap-4 bg-muted/30 p-4 rounded-lg border">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-4 items-end">
+          {isCustomRange ? (
+            <div className="space-y-1.5 flex-1 min-w-60 max-w-75">
+              <Label className="text-xs text-muted-foreground flex items-center gap-1"><Filter className="w-3 h-3"/> ช่วงวันที่ (กำหนดเอง)</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal bg-background", !date && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {date?.from ? (
+                      date.to ? (
+                        <>{format(date.from, "d MMM yyyy", { locale: th })} - {format(date.to, "d MMM yyyy", { locale: th })}</>
+                      ) : (format(date.from, "d MMM yyyy", { locale: th }))
+                    ) : (<span>แสดงทั้งหมด</span>)}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2} locale={th} />
+                </PopoverContent>
+              </Popover>
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row gap-2 flex-1">
+              <div className="space-y-1.5 flex-1 min-w-30">
+                <Label className="text-xs text-muted-foreground flex items-center gap-1"><CalendarIcon className="w-3 h-3"/> รอบบิล (เดือน)</Label>
+                <Select value={selectedCycle.getMonth().toString()} onValueChange={handleMonthChange}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="เลือกเดือน" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 12 }).map((_, i) => (
+                      <SelectItem key={i} value={i.toString()}>
+                        {format(new Date(2024, i, 1), "MMMM", { locale: th })}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5 w-full sm:w-28">
+                <Label className="text-xs text-muted-foreground">ปี</Label>
+                <Select value={selectedCycle.getFullYear().toString()} onValueChange={handleYearChange}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="เลือกปี" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 5 }).map((_, i) => {
+                      const year = new Date().getFullYear() - 2 + i;
+                      return <SelectItem key={year} value={year.toString()}>{year + 543}</SelectItem>;
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-1.5 flex-1 min-w-37.5 max-w-50">
+            <Label className="text-xs text-muted-foreground">ของใคร?</Label>
+            <Select value={filterOwner} onValueChange={setFilterOwner}>
+              <SelectTrigger className="bg-background">
+                <SelectValue placeholder="ทุกคน" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">ทุกคน (รวมกองกลาง)</SelectItem>
+                {OWNER_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5 flex-1 min-w-37.5 max-w-50">
+            <Label className="text-xs text-muted-foreground">ประเภทรายการ</Label>
+            <Select value={filterType} onValueChange={(val) => setFilterType(val as "all" | "income" | "expense")}>
+              <SelectTrigger className="bg-background">
+                <SelectValue placeholder="ทั้งหมด" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">แสดงทั้งหมด</SelectItem>
+                <SelectItem value="income">เฉพาะรายรับ</SelectItem>
+                <SelectItem value="expense">เฉพาะรายจ่าย</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        <div className="space-y-1.5 flex-1 min-w-37.5 max-w-50">
-          <Label className="text-xs text-muted-foreground">ของใคร?</Label>
-          <Select value={filterOwner} onValueChange={setFilterOwner}>
-            <SelectTrigger className="bg-background">
-              <SelectValue placeholder="ทุกคน" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">ทุกคน (รวมกองกลาง)</SelectItem>
-              {OWNER_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <div className="flex items-center justify-between border-t pt-3 mt-1">
+          <div className="flex items-center gap-2">
+            {!isCustomRange && date?.from && date?.to && (
+              <p className="text-xs text-primary font-medium bg-primary/10 px-2 py-1 rounded">
+                ช่วงเวลา: {format(date.from, "d MMM yy", { locale: th })} - {format(date.to, "d MMM yy", { locale: th })}
+              </p>
+            )}
+            <Button 
+              variant="link" 
+              size="sm" 
+              className="text-xs h-auto p-0" 
+              onClick={() => setIsCustomRange(!isCustomRange)}
+            >
+              <RefreshCw className="w-3 h-3 mr-1" />
+              {isCustomRange ? "สลับไปใช้รอบบิล" : "กำหนดช่วงวันที่เอง"}
+            </Button>
+          </div>
 
-        <div className="space-y-1.5 flex-1 min-w-37.5 max-w-50">
-          <Label className="text-xs text-muted-foreground">ประเภทรายการ</Label>
-          <Select value={filterType} onValueChange={(val) => setFilterType(val as "all" | "income" | "expense")}>
-            <SelectTrigger className="bg-background">
-              <SelectValue placeholder="ทั้งหมด" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">แสดงทั้งหมด</SelectItem>
-              <SelectItem value="income">เฉพาะรายรับ</SelectItem>
-              <SelectItem value="expense">เฉพาะรายจ่าย</SelectItem>
-            </SelectContent>
-          </Select>
+          {hasFilters && (
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={handleClearFilters}
+              className="text-muted-foreground hover:text-foreground h-8"
+            >
+              <XCircle className="w-3.5 h-3.5 mr-1.5" />
+              ล้างตัวกรอง
+            </Button>
+          )}
         </div>
-
-        {hasFilters && (
-          <Button 
-            variant="ghost" 
-            onClick={handleClearFilters}
-            className="text-muted-foreground hover:text-foreground mb-0.5"
-          >
-            <XCircle className="w-4 h-4 mr-2" />
-            ล้างตัวกรอง
-          </Button>
-        )}
       </div>
 
       <TransactionTable 

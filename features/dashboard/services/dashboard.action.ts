@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import { format } from "date-fns";
 
 export interface DashboardExpense {
   id: number;
@@ -29,7 +30,7 @@ export async function fetchDashboardTransactions(earliestDate: Date) {
   if (!user) throw new Error("ไม่พบผู้ใช้งาน");
 
   const earliestDateStr = earliestDate.toISOString();
-  const earliestDateOnly = earliestDateStr.split('T')[0];
+  const earliestDateOnly = format(earliestDate, "yyyy-MM-dd");
 
   const [expensesRes, incomesRes] = await Promise.all([
     supabase

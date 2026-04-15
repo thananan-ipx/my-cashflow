@@ -18,6 +18,7 @@ export interface Transaction {
   date: string;
   is_fixed: boolean;
   owner: string;
+  slip_url?: string | null;
 }
 
 export interface Budget {
@@ -59,4 +60,15 @@ export interface ExpenseRecord {
   is_fixed: boolean;
   owner?: string;
   transaction_categories?: { name: string; color: string };
+  slip_url?: string | null;
+}
+
+export type UserRole = "admin" | "member" | "viewer";
+
+export interface User {
+  id: string;
+  email: string;
+  name: string | null;
+  role?: UserRole; // Role is not in schema but we keep it for app logic if needed
+  created_at: string;
 }

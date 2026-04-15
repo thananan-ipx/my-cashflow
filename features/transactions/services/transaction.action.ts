@@ -3,6 +3,28 @@ import { createClient } from "@/lib/supabase/client"
 import { Transaction } from "@/types"
 import { format } from "date-fns"
 
+export async function uploadSlip(file: File): Promise<string> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("ไม่พบข้อมูลผู้ใช้")
+
+  const fileExt = file.name.split('.').pop()
+  const fileName = `${user.id}-${Math.random().toString(36).substring(2)}.${fileExt}`
+  const filePath = `${fileName}`
+
+  const { error: uploadError } = await supabase.storage
+    .from('slip')
+    .upload(filePath, file)
+
+  if (uploadError) throw uploadError
+
+  const { data: { publicUrl } } = supabase.storage
+    .from('slip')
+    .getPublicUrl(filePath)
+
+  return publicUrl
+}
+
 export async function fetchTransactions(
   fromDate: string | null,
   toDate: string | null
@@ -18,9 +40,11 @@ export async function fetchTransactions(
     .select(`*, transaction_categories(name, color)`)
     // .eq("user_id", user.id)
   if (fromDate && toDate) {
+    const fromDateOnly = format(new Date(fromDate), "yyyy-MM-dd");
+    const toDateOnly = format(new Date(toDate), "yyyy-MM-dd");
     expQuery = expQuery
-      .gte("date", fromDate.split("T")[0])
-      .lte("date", toDate.split("T")[0])
+      .gte("date", fromDateOnly)
+      .lte("date", toDateOnly)
   }
   const { data: expenses, error: expError } = await expQuery
   if (expError) throw expError
@@ -47,6 +71,7 @@ export async function fetchTransactions(
     date: e.date,
     is_fixed: e.is_fixed,
     owner: e.owner || "joint",
+    slip_url: e.slip_url,
   }))
 
   const formattedIncomes: Transaction[] = (incomes || []).map((i) => ({
@@ -60,6 +85,7 @@ export async function fetchTransactions(
     date: format(new Date(i.created_at), "yyyy-MM-dd"),
     is_fixed: i.is_fixed,
     owner: i.owner || "joint",
+    slip_url: i.slip_url,
   }))
 
   return [...formattedExpenses, ...formattedIncomes].sort((a, b) => {
@@ -74,6 +100,7 @@ export async function addIncome(data: {
   isFixed: boolean
   note: string
   owner: string
+  slipUrl?: string | null
 }) {
   const supabase = createClient()
   const {
@@ -91,6 +118,7 @@ export async function addIncome(data: {
     note: data.note,
     created_at: data.formDate.toISOString(),
     owner: data.owner,
+    slip_url: data.slipUrl,
   })
 
   if (error) throw error
@@ -108,6 +136,7 @@ export async function addExpense(data: {
   currentRemainingInstallments?: number | null
   monthlyPayment?: number
   debtName?: string
+  slipUrl?: string | null
 }) {
   const supabase = createClient()
   const {
@@ -126,6 +155,7 @@ export async function addExpense(data: {
     year: data.formDate.getFullYear(),
     note: data.note,
     owner: data.owner,
+    slip_url: data.slipUrl,
   })
   if (error) throw error
 
@@ -181,6 +211,7 @@ export async function updateIncome(
     formDate: Date
     note: string
     owner: string
+    slipUrl?: string | null
   }
 ) {
   const supabase = createClient()
@@ -194,6 +225,7 @@ export async function updateIncome(
       note: data.note,
       created_at: data.formDate.toISOString(),
       owner: data.owner,
+      slip_url: data.slipUrl,
     })
     .eq("id", id)
 
@@ -209,6 +241,7 @@ export async function updateExpense(
     formDate: Date
     note: string
     owner: string
+    slipUrl?: string | null
   }
 ) {
   const supabase = createClient()
@@ -223,6 +256,7 @@ export async function updateExpense(
       year: data.formDate.getFullYear(),
       note: data.note,
       owner: data.owner,
+      slip_url: data.slipUrl,
     })
     .eq("id", id)
 
