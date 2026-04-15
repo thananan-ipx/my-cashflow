@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { th } from "date-fns/locale";
-import { Calendar as CalendarIcon, Users, ArrowRightLeft } from "lucide-react";
+import { Calendar as CalendarIcon, Users, ArrowRightLeft, FileText, Image } from "lucide-react";
 import { toast } from "sonner";
 
 import { Category, Debt } from "@/types";
 import { OWNER_OPTIONS } from "@/lib/constants";
-import { addIncome, addExpense, addTransfer } from "@/features/transactions/services/transaction.action";
+import { addIncome, addExpense, addTransfer, uploadSlip } from "@/features/transactions/services/transaction.action";
 import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,7 @@ export function AddTransactionDialog({ isOpen, onOpenChange, categories, activeD
   const [formDate, setFormDate] = useState<Date | undefined>(new Date());
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
   // States สำหรับรายรับ/รายจ่าย
   const [incomeCategoryId, setIncomeCategoryId] = useState("");
@@ -55,6 +56,7 @@ export function AddTransactionDialog({ isOpen, onOpenChange, categories, activeD
     setFromOwner("new");
     setToOwner("save");
     setFormDate(new Date());
+    setSelectedFile(null);
   };
 
   const isDebtCategory = categories.find((c) => c.id.toString() === expenseCategoryId)?.name.includes("หนี้") || false;
@@ -68,6 +70,11 @@ export function AddTransactionDialog({ isOpen, onOpenChange, categories, activeD
 
     setIsSaving(true);
     try {
+      let slipUrl = null;
+      if (selectedFile) {
+        slipUrl = await uploadSlip(selectedFile);
+      }
+
       const targetDebt = isDebtCategory ? activeDebts.find((d) => d.id.toString() === selectedDebtId) : undefined;
 
       const result = await addExpense({
@@ -81,7 +88,8 @@ export function AddTransactionDialog({ isOpen, onOpenChange, categories, activeD
         debtId: targetDebt?.id,
         currentRemainingInstallments: targetDebt?.remaining_installments,
         monthlyPayment: targetDebt?.monthly_payment,
-        debtName: targetDebt?.name
+        debtName: targetDebt?.name,
+        slipUrl: slipUrl
       });
 
       if (result) {
@@ -107,13 +115,19 @@ export function AddTransactionDialog({ isOpen, onOpenChange, categories, activeD
 
     setIsSaving(true);
     try {
+      let slipUrl = null;
+      if (selectedFile) {
+        slipUrl = await uploadSlip(selectedFile);
+      }
+
       await addIncome({
         amount: parseFloat(amount),
         categoryId: parseInt(incomeCategoryId),
         formDate: formDate,
         isFixed: false,
         note: note,
-        owner: owner
+        owner: owner,
+        slipUrl: slipUrl
       });
 
       toast.success("บันทึกรายรับสำเร็จ");
@@ -124,6 +138,12 @@ export function AddTransactionDialog({ isOpen, onOpenChange, categories, activeD
       if (error instanceof Error) toast.error(error.message);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
     }
   };
 
@@ -244,6 +264,14 @@ export function AddTransactionDialog({ isOpen, onOpenChange, categories, activeD
               </div>
 
               <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Image className="w-4 h-4" /> แนบรูปสลิป (ถ้ามี)
+                </Label>
+                <Input type="file" accept="image/*" onChange={handleFileChange} />
+                {selectedFile && <p className="text-xs text-muted-foreground">ไฟล์ที่เลือก: {selectedFile.name}</p>}
+              </div>
+
+              <div className="space-y-2">
                 <Label>บันทึกเพิ่มเติม (Note)</Label>
                 <Textarea placeholder="รายละเอียดเพิ่มเติม..." value={note} onChange={(e) => setNote(e.target.value)} />
               </div>
@@ -296,6 +324,14 @@ export function AddTransactionDialog({ isOpen, onOpenChange, categories, activeD
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Image className="w-4 h-4" /> แนบรูปสลิป (ถ้ามี)
+                </Label>
+                <Input type="file" accept="image/*" onChange={handleFileChange} />
+                {selectedFile && <p className="text-xs text-muted-foreground">ไฟล์ที่เลือก: {selectedFile.name}</p>}
               </div>
 
               <div className="space-y-2">
@@ -356,6 +392,14 @@ export function AddTransactionDialog({ isOpen, onOpenChange, categories, activeD
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Image className="w-4 h-4" /> แนบรูปสลิป (ถ้ามี)
+                </Label>
+                <Input type="file" accept="image/*" onChange={handleFileChange} />
+                {selectedFile && <p className="text-xs text-muted-foreground">ไฟล์ที่เลือก: {selectedFile.name}</p>}
               </div>
 
               <div className="space-y-2">

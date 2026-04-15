@@ -9,6 +9,7 @@ import {
   CreditCard,
   PiggyBank,
   Tags,
+  Users,
 } from "lucide-react"
 import { usePathname } from "next/navigation"
 
@@ -54,6 +55,12 @@ const data = {
       title: "งบประมาณ & การออม",
       url: "/budgets",
       icon: PiggyBank,
+      isActive: false,
+    },
+    {
+      title: "จัดการผู้ใช้งาน",
+      url: "/users",
+      icon: Users,
       isActive: false,
     },
     {

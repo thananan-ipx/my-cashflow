@@ -6,6 +6,7 @@ import {
   ChevronsUpDown,
   KeyRound,
   LogOut,
+  User,
 } from "lucide-react"
 
 import {
@@ -28,9 +29,11 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { createClient } from "@/lib/supabase/client"
+import { toast } from "sonner"
 
 export function NavUser({
-  user,
+  user: initialUser,
 }: {
   user: {
     id: string
@@ -41,27 +44,41 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const router = useRouter()
-  
-  const [currentUser, setCurrentUser] = useState(user)
+  const supabase = createClient()
+
+  const [user, setUser] = useState({
+    name: initialUser.name,
+    email: initialUser.email,
+    avatar: initialUser.avatar,
+  })
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("user_info")
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser)
-        setTimeout(() => {
-            setCurrentUser((prev) => ({ ...prev, ...parsedUser }))
-        }, 0)
-      } catch (error) {
-        console.error("Failed to parse user info from local storage", error)
+    async function getUser() {
+      const { data: { user: supabaseUser } } = await supabase.auth.getUser()
+      if (supabaseUser) {
+        setUser({
+          name: supabaseUser.user_metadata?.full_name || supabaseUser.email?.split('@')[0] || "User",
+          email: supabaseUser.email || "",
+          avatar: supabaseUser.user_metadata?.avatar_url || "",
+        })
       }
     }
-  }, [])
+    getUser()
+  }, [supabase.auth])
 
-  const handleLogout = () => {
-    localStorage.removeItem("token")
-    localStorage.removeItem("user_info")
-    router.push("/")
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+
+      router.push("/")
+      router.refresh()
+      toast.success("ออกจากระบบสำเร็จ")
+    } catch (error) {
+      if (error instanceof Error) {
+        toast.error("ออกจากระบบล้มเหลว: " + error.message)
+      }
+    }
   }
 
   return (
@@ -75,12 +92,14 @@ export function NavUser({
                 className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               >
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={currentUser.avatar} alt={currentUser.name} />
-                  <AvatarFallback className="rounded-lg">{currentUser.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                  <AvatarImage src={user.avatar} alt={user.name} />
+                  <AvatarFallback className="rounded-lg">
+                    {user.name ? user.name.slice(0, 2).toUpperCase() : <User className="size-4" />}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{currentUser.name}</span>
-                  <span className="truncate text-xs">{currentUser.email}</span>
+                  <span className="truncate font-medium">{user.name}</span>
+                  <span className="truncate text-xs">{user.email}</span>
                 </div>
                 <ChevronsUpDown className="ml-auto size-4" />
               </SidebarMenuButton>
@@ -94,25 +113,27 @@ export function NavUser({
               <DropdownMenuLabel className="p-0 font-normal">
                 <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                   <Avatar className="h-8 w-8 rounded-lg">
-                    <AvatarImage src={currentUser.avatar} alt={currentUser.name} />
-                    <AvatarFallback className="rounded-lg">{currentUser.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                    <AvatarImage src={user.avatar} alt={user.name} />
+                    <AvatarFallback className="rounded-lg">
+                      {user.name ? user.name.slice(0, 2).toUpperCase() : <User className="size-4" />}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-medium">{currentUser.name}</span>
-                    <span className="truncate text-xs">{currentUser.email}</span>
+                    <span className="truncate font-medium">{user.name}</span>
+                    <span className="truncate text-xs">{user.email}</span>
                   </div>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
-                <DropdownMenuItem>
-                  <KeyRound />
+                <DropdownMenuItem onClick={() => toast.info("ฟีเจอร์นี้กำลังพัฒนา")}>
+                  <KeyRound className="size-4" />
                   รีเซ็ตรหัสผ่าน
                 </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout}>
-                <LogOut />
+                <LogOut className="size-4" />
                 ออกจากระบบ
               </DropdownMenuItem>
             </DropdownMenuContent>
