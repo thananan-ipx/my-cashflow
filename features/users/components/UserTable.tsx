@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { MoreHorizontal, User, UserX, Edit } from "lucide-react";
+import { MoreHorizontal, User, UserX, Edit, KeyRound } from "lucide-react";
 import { format } from "date-fns";
 import { th } from "date-fns/locale";
 import { toast } from "sonner";
@@ -28,9 +28,10 @@ interface UserTableProps {
   currentUserId: string | undefined;
   isLoading: boolean;
   onEdit: (profile: UserType) => void;
+  onChangePassword: (profile: UserType) => void;
 }
 
-export function UserTable({ profiles, currentUserId, isLoading, onEdit }: UserTableProps) {
+export function UserTable({ profiles, currentUserId, isLoading, onEdit, onChangePassword }: UserTableProps) {
   const handleDeleteUser = async (userId: string) => {
     if (!confirm("คุณแน่ใจหรือไม่ที่จะลบผู้ใช้นี้ออกจากระบบ?")) return;
     try {
@@ -100,6 +101,9 @@ export function UserTable({ profiles, currentUserId, isLoading, onEdit }: UserTa
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => onEdit(profile)}>
                           <Edit className="mr-2 h-4 w-4" /> แก้ไขข้อมูล
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onChangePassword(profile)}>
+                          <KeyRound className="mr-2 h-4 w-4" /> เปลี่ยนรหัสผ่าน
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem 

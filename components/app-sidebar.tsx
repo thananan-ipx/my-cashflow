@@ -1,18 +1,10 @@
 "use client"
 
 import * as React from "react"
-import {
-  Command,
-  Settings2,
-  LayoutDashboard,
-  Wallet,
-  CreditCard,
-  PiggyBank,
-  Tags,
-  Users,
-} from "lucide-react"
+import { Command, Settings2 } from "lucide-react"
 import { usePathname } from "next/navigation"
 
+import { NAV_ITEMS } from "@/lib/navigation"
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
 import {
@@ -32,65 +24,34 @@ const data = {
     email: "user@example.com",
     avatar: "",
   },
-  navMain: [
-    {
-      title: "แดชบอร์ด",
-      url: "/dashboard",
-      icon: LayoutDashboard,
-      isActive: false,
-    },
-    {
-      title: "รายรับ-รายจ่าย",
-      url: "/transactions",
-      icon: Wallet,
-      isActive: false,
-    },
-    {
-      title: "จัดการหนี้สิน",
-      url: "/debts",
-      icon: CreditCard,
-      isActive: false,
-    },
-    {
-      title: "งบประมาณ & การออม",
-      url: "/budgets",
-      icon: PiggyBank,
-      isActive: false,
-    },
-    {
-      title: "จัดการผู้ใช้งาน",
-      url: "/users",
-      icon: Users,
-      isActive: false,
-    },
-    {
-      title: "ตั้งค่าระบบ",
-      url: "/settings",
-      icon: Settings2,
-      isActive: false,
-      items: [
-        {
-          title: "ประเภทรายการ",
-          url: "/categories",
-          icon: Tags,
-          isActive: false,
-        },
-      ],
-    },
-  ],
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
 
   const navMainWithState = React.useMemo(() => {
-    return data.navMain.map((item) => {
-      const isChildActive = item.url !== "#" && pathname.startsWith(item.url)
-      return {
-        ...item,
-        isActive: isChildActive || pathname === item.url,
-      }
-    })
+    return [
+      ...NAV_ITEMS.map((item) => ({
+        title: item.title,
+        url: item.url,
+        icon: item.icon,
+        isActive: pathname.startsWith(item.url),
+      })),
+      {
+        title: "ตั้งค่าระบบ",
+        url: "/settings",
+        icon: Settings2,
+        isActive: pathname.startsWith("/settings"),
+        items: [
+          {
+            title: "ประเภทรายการ",
+            url: "/categories",
+            icon: "Tags",
+            isActive: pathname === "/categories",
+          },
+        ],
+      },
+    ]
   }, [pathname])
 
   return (

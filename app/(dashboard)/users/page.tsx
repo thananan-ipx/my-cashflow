@@ -1,18 +1,19 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { PlusCircle, Users, Search, XCircle } from "lucide-react";
+import { PlusCircle, Search, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { User } from "@/types";
 import { fetchProfiles, getCurrentProfile } from "@/features/users/services/user.action";
 import { UserTable } from "@/features/users/components/UserTable";
 import { AddUserDialog } from "@/features/users/components/AddUserDialog";
 import { EditUserDialog } from "@/features/users/components/EditUserDialog";
+import { ChangePasswordDialog } from "@/features/users/components/ChangePasswordDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export default function UsersPage() {
-  const [profiles, setProfiles] = useState<User[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [currentProfile, setCurrentProfile] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -20,17 +21,18 @@ export default function UsersPage() {
   // Dialog States
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<User | null>(null);
+  const [passwordResetProfile, setPasswordResetProfile] = useState<User | null>(null);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [allProfiles, me] = await Promise.all([
+      const [allUsers, me] = await Promise.all([
         fetchProfiles(),
         getCurrentProfile()
       ]);
-      setProfiles(allProfiles);
+      setUsers(allUsers || []);
       setCurrentProfile(me);
-    } catch (error) {
+    } catch {
       toast.error("ดึงข้อมูลผู้ใช้ล้มเหลว");
     } finally {
       setIsLoading(false);
@@ -41,14 +43,14 @@ export default function UsersPage() {
     loadData();
   }, [loadData]);
 
-  const filteredProfiles = useMemo(() => {
-    if (!searchQuery) return profiles;
+  const filteredUsers = useMemo(() => {
+    if (!searchQuery) return users;
     const query = searchQuery.toLowerCase();
-    return profiles.filter(p => 
+    return users.filter(p => 
       p.name?.toLowerCase().includes(query) || 
       p.email?.toLowerCase().includes(query)
     );
-  }, [profiles, searchQuery]);
+  }, [users, searchQuery]);
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -78,6 +80,15 @@ export default function UsersPage() {
         onSuccess={loadData} 
       />
 
+      {passwordResetProfile && (
+        <ChangePasswordDialog
+          isOpen={!!passwordResetProfile}
+          onOpenChange={(open) => !open && setPasswordResetProfile(null)}
+          user={{ id: passwordResetProfile.id, name: passwordResetProfile.name || "ไม่ระบุชื่อ" }}
+          onSuccess={loadData}
+        />
+      )}
+
       <div className="grid gap-6">
         <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
           <div className="relative w-full sm:w-96">
@@ -101,15 +112,16 @@ export default function UsersPage() {
           </div>
           
           <div className="text-sm text-muted-foreground">
-            แสดง {filteredProfiles.length} จาก {profiles.length} รายการ
+            แสดง {filteredUsers.length} จาก {users.length} รายการ
           </div>
         </div>
 
         <UserTable 
-          profiles={filteredProfiles} 
+          profiles={filteredUsers} 
           currentUserId={currentProfile?.id} 
           isLoading={isLoading} 
           onEdit={setEditingProfile}
+          onChangePassword={setPasswordResetProfile}
         />
       </div>
     </div>
